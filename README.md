@@ -9,7 +9,7 @@
 - 기록은 `Enter` 한 번 — 한글(IME) 조합 중에도 Enter를 두 번 누를 필요가 없습니다.
 - 결정·조치·질의·안건·비공개는 줄 맨 앞 문장부호로 표시 — 한/영 전환이 필요 없습니다.
 
-![Uploading image.png…]()
+<img width="1912" height="822" alt="스크린샷 2026-08-28 100728" src="https://github.com/user-attachments/assets/42363045-1932-4a66-8272-ad0a70b8b215" />
 
 
 ## 시작하기
