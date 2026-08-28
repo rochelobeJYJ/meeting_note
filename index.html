@@ -1,0 +1,1636 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>회의록</title>
+<meta name="description" content="설치 없이 브라우저에서 바로 쓰는 회의록 작성 도구. 단축키로 화자를 바꾸고 Enter로 기록하며, 모든 데이터는 내 컴퓨터에만 저장됩니다.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f4f6f8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='6' width='80' height='88' rx='12' fill='%231f6feb'/%3E%3Crect x='26' y='26' width='48' height='8' rx='4' fill='%23fff'/%3E%3Crect x='26' y='46' width='48' height='8' rx='4' fill='%23fff' opacity='.85'/%3E%3Crect x='26' y='66' width='30' height='8' rx='4' fill='%23fff' opacity='.7'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#ffffff; --line:#e2e6ec; --line2:#eef1f5;
+    --fg:#1b1f27; --dim:#6b7280; --acc:#1f6feb; --sel:#e9f2ff;
+    --ok:#0b7a43; --warn:#9a6100; --bad:#c0392b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:14px/1.6 "Malgun Gothic","맑은 고딕",system-ui,sans-serif;overflow:hidden}
+  button{background:#fff;color:var(--fg);border:1px solid #d3d8e0;border-radius:6px;
+         padding:6px 11px;cursor:pointer;font-size:13px;font-family:inherit}
+  button:hover{background:#f0f3f7;border-color:#b9c1cd}
+  button.go{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:700}
+  button.go:hover{background:#1a5fd0}
+  button.danger{color:var(--bad);border-color:#e8c3bf}
+  button.danger:hover{background:#fdf1f0}
+  input,textarea,select{background:#fff;color:var(--fg);border:1px solid #d3d8e0;
+       border-radius:6px;padding:8px 10px;font:14px/1.5 inherit;font-family:inherit;width:100%}
+  input:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
+  .hide{display:none !important}
+  .kbd{font-family:Consolas,monospace;background:#eef1f5;border:1px solid #dfe4ea;
+       border-radius:4px;padding:1px 5px;font-size:11px;color:#4b5563}
+
+  /* ── 설정 ── */
+  #setup{height:100%;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:32px 20px}
+  #setup .box{width:min(580px,100%);background:var(--panel);border:1px solid var(--line);
+       border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  #setup h1{margin:0 0 4px;font-size:20px}
+  #setup p.sub{margin:0 0 18px;color:var(--dim);font-size:13px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:5px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .arch{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+  .arch h3{margin:0 0 8px;font-size:12px;color:var(--dim);letter-spacing:.03em}
+  .arch-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;font-size:13px}
+  .arch-row:hover{background:#f5f7fa}
+  .arch-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arch-row .dt{color:var(--dim);font-size:11px;font-family:Consolas,monospace}
+
+  /* ── 메인 ── */
+  /* 열을 명시하지 않으면 암시적 auto 열이 머리말의 최소 너비까지 늘어나
+     창이 좁을 때 페이지 전체에 가로 스크롤이 생긴다 */
+  #app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:100%}
+  header{display:flex;align-items:center;gap:10px;padding:9px 14px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  header .t{font-weight:700;font-size:15px;flex:0 1 auto;min-width:0;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .meta{color:var(--dim);font-size:12px;flex:0 1 auto;min-width:0;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .sp{flex:1 1 auto;min-width:8px}
+  header button{white-space:nowrap;flex:0 0 auto}
+  #saved{font-size:12px;color:var(--ok);min-width:74px;text-align:right;flex:0 0 auto}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) 250px;overflow:hidden}
+  #log{overflow-y:auto;padding:10px 6px 14px 14px;background:var(--panel)}
+
+  .agsep{display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding:5px 10px;
+         background:#eef3fb;border-left:3px solid var(--acc);border-radius:0 6px 6px 0;
+         font-weight:700;font-size:13px}
+  .agsep:first-child{margin-top:2px}
+  .agsep .sp2{flex:1}
+  .agsep .act{opacity:0;display:flex;gap:3px}
+  .agsep:hover .act{opacity:1}
+  .agsep .act button{padding:0 6px;font-size:11px;line-height:1.5}
+  .empty{color:var(--dim);font-size:12px;padding:2px 0 6px 14px;font-style:italic}
+
+  /* 오른쪽 여백은 마우스를 올렸을 때 나타나는 조작 버튼의 자리다.
+     항상 비워 두어야 본문 끝이나 담당·기한 표시가 가려지지 않는다. */
+  .e{display:flex;gap:9px;padding:3px 166px 3px 0;border-radius:6px;align-items:baseline;position:relative}
+  .e:hover{background:#f5f7fa}
+  .e.sel{background:var(--sel);outline:1px solid var(--acc)}
+  .e .tm{color:#98a1b0;font-size:11px;font-family:Consolas,monospace;flex:0 0 38px;padding-top:2px}
+  .e .who{flex:0 0 96px;font-weight:700;font-size:13px;text-align:right;padding-top:1px;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .e .bd{flex:1;min-width:0;word-break:break-word;white-space:pre-wrap}
+  .e .tag{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:4px;
+          margin-right:6px;vertical-align:1px;border:1px solid}
+  .t-결정{background:#fff4d6;color:#7a4b00;border-color:#f0dcae}
+  .t-액션{background:#dff5e6;color:#0b5c33;border-color:#b9e5c9}
+  .t-질의{background:#ece9ff;color:#4a3ba0;border-color:#d3cdf5}
+  .e.priv .bd{opacity:.55;font-style:italic}
+  /* 호버할 때만 붙이므로 행 흐름 밖에 띄운다 — 글자가 밀리지 않게 */
+  .e .act{position:absolute;right:6px;top:1px;display:flex;gap:3px;align-items:center;
+          padding-left:12px;background:#f5f7fa;border-radius:6px}
+  .e.sel .act{background:var(--sel)}
+  .e .act button{padding:1px 6px;font-size:11px;line-height:1.4}
+  .e .act select{width:auto;padding:1px 4px;font-size:11px;height:22px;border-radius:4px}
+  .meta2{color:var(--dim);font-size:11px;margin-left:6px}
+
+  aside{border-left:1px solid var(--line);background:#fafbfc;overflow-y:auto;padding:10px}
+  aside h3{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.04em}
+  .sp-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;
+          margin-bottom:2px;cursor:pointer}
+  .sp-row:hover{background:#eef1f5}
+  .sp-row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
+  .sp-row .n{flex:0 0 20px;text-align:center;font-family:Consolas,monospace;font-size:11px;
+             color:var(--dim);border:1px solid #dbe0e8;border-radius:4px;background:#fff}
+  .sp-row.on .n{color:var(--acc);border-color:var(--acc)}
+  .sp-row .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .sp-row .nm{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-row.on .nm{font-weight:700}
+  .sp-row .ct{font-size:11px;color:var(--dim);font-family:Consolas,monospace}
+  .stat{margin-top:14px;padding-top:10px;border-top:1px solid var(--line);
+        color:var(--dim);font-size:12px;line-height:1.9}
+  .stat b{color:var(--fg)}
+
+  footer{border-top:1px solid var(--line);background:var(--panel);padding:8px 14px 10px}
+  #cur{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
+  #cur .chip{display:inline-flex;align-items:center;gap:7px;padding:3px 13px;border-radius:20px;
+             font-weight:700;font-size:14px;color:#fff}
+  #cur .editing{color:var(--warn);font-size:12px;font-weight:700}
+  #cur .hint{color:var(--dim);font-size:11px;margin-left:auto;text-align:right}
+  #inp{font-size:16px;padding:10px 12px;resize:none;height:54px;line-height:1.45}
+
+  /* ── 오버레이 ── */
+  .ov{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
+      background:rgba(27,31,39,.35);display:flex;align-items:center;
+      justify-content:center;padding:20px;z-index:50}
+  .ov .box{width:min(800px,100%);max-height:90vh;overflow:auto;background:var(--panel);
+      border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:0 8px 28px rgba(16,24,40,.18)}
+  .ov h2{margin:0 0 12px;font-size:16px}
+  .ov .rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  #outText{height:330px;font-family:Consolas,"Malgun Gothic",monospace;font-size:12px;white-space:pre}
+  table.help{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.help td{padding:4px 6px;border-bottom:1px solid var(--line2);vertical-align:top}
+  table.help td:first-child{width:158px;white-space:nowrap;color:var(--acc);font-weight:600}
+  table.help code{background:#eef1f5;padding:0 4px;border-radius:3px}
+
+  /* ── 좁은 화면 ──
+     교실 프로젝터(1024)나 브라우저 확대(125~150%)에서는 폭이 크게 줄어든다.
+     머리말이 여러 줄로 접히면 기록 영역이 그만큼 깎이므로 한 줄을 유지하고,
+     덜 중요한 정보부터 순서대로 감춘다. 뒤에 와야 앞의 기본 규칙을 덮는다. */
+  @media (max-width:1040px){ header button .kbd{display:none} }
+  @media (max-width:880px){
+    header .meta{display:none}
+    main{grid-template-columns:minmax(0,1fr) 200px}
+    #cur .hint{display:none}
+  }
+  @media (max-width:720px){
+    main{grid-template-columns:minmax(0,1fr) 162px}
+    aside{padding:8px 6px}
+    .e .who{flex:0 0 72px}
+    .e{padding-right:124px}
+    .e .act{padding-left:6px}
+    .e .act select{max-width:52px}
+    .sp-row{gap:6px;padding:5px 4px}
+  }
+</style>
+</head>
+<body>
+<noscript><p style="padding:24px;font-family:sans-serif">이 앱은 JavaScript가 켜져 있어야 동작합니다.</p></noscript>
+
+<!-- ══════════ 설정 ══════════ -->
+<div id="setup">
+  <div class="box">
+    <h1>회의록 시작</h1>
+    <p class="sub">참석자만 넣으면 바로 시작됩니다. 회의 중에도 <span class="kbd">F9</span>로 수정 가능.</p>
+    <div class="two">
+      <div class="field"><label for="sTitle">회의 제목</label><input id="sTitle" placeholder="예: 2학기 교육과정 협의회"></div>
+      <div class="field"><label for="sPlace">장소 (선택)</label><input id="sPlace" placeholder="예: 본관 3층 회의실"></div>
+    </div>
+    <div class="two" style="grid-template-columns:1.6fr 1fr">
+      <div class="field">
+        <label for="sPeople">참석자 — 한 줄에 한 명 (최대 12명, 순서가 곧 <span class="kbd">Alt+숫자</span>)</label>
+        <textarea id="sPeople" rows="8" placeholder="김민수 교감&#10;이정호 연구부장&#10;박서연&#10;최유진"></textarea>
+      </div>
+      <div class="field">
+        <label for="sAbsent">결석자 (선택) — 한 줄에 한 명</label>
+        <textarea id="sAbsent" rows="8" placeholder="정하늘&#10;(사유는 이름 옆에)"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="go" onclick="startMeeting()">회의 시작 <span class="kbd" style="background:#4b8cf0;border-color:#4b8cf0;color:#fff">Ctrl+Enter</span></button>
+      <button onclick="loadFile()">파일(.json) 불러오기</button>
+    </div>
+
+    <div class="arch">
+      <h3>위원회 · 저장된 명단</h3>
+      <p style="color:var(--dim);font-size:12px;margin:0 0 8px">
+        브라우저에만 저장되어 있어 <b>사이트 데이터를 지우면 함께 사라집니다.</b>
+        중요한 위원회는 파일로 내보내 두세요.</p>
+      <div id="presetList"></div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="savePreset()">＋ 지금 입력한 명단을 위원회로 저장</button>
+        <span style="flex:1"></span>
+        <button onclick="exportPresets()">📤 위원회 전체 내보내기 (.json)</button>
+        <button onclick="importPresetsClick()">📥 위원회 파일 불러오기</button>
+      </div>
+    </div>
+
+    <div id="archWrap" class="arch hide">
+      <h3>지난 회의 — 최근 20개까지 자동 보관</h3>
+      <div id="archList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 메인 ══════════ -->
+<div id="app" class="hide">
+  <header>
+    <span class="t" id="hTitle">회의록</span>
+    <span class="meta" id="hMeta"></span>
+    <span class="sp"></span>
+    <span id="saved"></span>
+    <button onclick="openExport()">내보내기 <span class="kbd">F8</span></button>
+    <button onclick="openPeople()">참석자 <span class="kbd">F9</span></button>
+    <button onclick="openHelp()">도움말 <span class="kbd">F4</span></button>
+    <button onclick="newMeeting()">새 회의</button>
+  </header>
+
+  <main>
+    <div id="log"></div>
+    <aside>
+      <h3>참석자</h3>
+      <div id="people"></div>
+      <div class="stat" id="stat"></div>
+    </aside>
+  </main>
+
+  <footer>
+    <div id="cur"></div>
+    <textarea id="inp" rows="2" aria-label="발언 입력"
+      placeholder="발언 내용을 입력하고 Enter"></textarea>
+  </footer>
+</div>
+
+<!-- ══════════ 내보내기 ══════════ -->
+<div id="ovExport" class="ov hide" role="dialog" aria-modal="true" aria-label="내보내기">
+  <div class="box">
+    <h2>내보내기</h2>
+    <div class="rowbtn">
+      <button class="go" onclick="copyRich()">📋 한글·워드에 붙여넣기 (서식 유지)</button>
+      <span style="width:14px"></span>
+      <button onclick="setOut('md')">마크다운</button>
+      <button onclick="setOut('txt')">일반 텍스트</button>
+      <button onclick="setOut('sum')">요약</button>
+      <button onclick="copyOut()">📋 아래 내용 복사</button>
+      <span style="flex:1"></span>
+      <button onclick="saveJson()">💾 .json 저장</button>
+      <button onclick="closeOv()">닫기 <span class="kbd">Esc</span></button>
+    </div>
+    <textarea id="outText" readonly aria-label="내보낼 회의록 본문"></textarea>
+    <div style="color:var(--dim);font-size:12px;margin-top:8px">
+      <b>서식 유지 복사</b>는 표와 굵은 글씨가 그대로 한글에 들어갑니다(가장 추천).
+      비공개(<code>//</code>) 항목은 <b>서식 유지 복사·마크다운·일반 텍스트·요약</b>에서 제외됩니다.
+      <b>.json 저장</b>은 이어 쓰기 위한 원본 백업이라 <b>비공개 항목까지 그대로 담기므로</b>
+      남에게 전달하는 용도로는 쓰지 마세요.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 참석자 편집 ══════════ -->
+<div id="ovPeople" class="ov hide" role="dialog" aria-modal="true" aria-label="참석자 편집">
+  <div class="box" style="width:min(470px,100%)">
+    <h2>참석자 편집</h2>
+    <p style="color:var(--dim);font-size:12px;margin:0 0 10px">
+      한 줄에 한 명(최대 12명). 순서를 바꿔도 <b>기존 기록의 화자는 이름 기준으로 따라갑니다.</b>
+      명단에서 지운 사람에게 발언이 남아 있으면 자동으로 목록 끝에 보존됩니다.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <select id="pPreset" aria-label="위원회에서 명단 불러오기"
+              onchange="applyPresetToDialog(this.value)" style="flex:1">
+        <option value="">위원회에서 명단 불러오기…</option>
+      </select>
+      <button onclick="savePresetFromDialog()">현재 명단을 위원회로 저장</button>
+      <button onclick="exportPresets()" title="위원회 전체를 파일로 백업">📤</button>
+      <button onclick="importPresetsClick()" title="위원회 파일 불러오기">📥</button>
+    </div>
+    <div class="two" style="grid-template-columns:1.6fr 1fr">
+      <div class="field" style="margin:0">
+        <label for="pEdit">참석자</label>
+        <textarea id="pEdit" rows="12"></textarea>
+      </div>
+      <div class="field" style="margin:0">
+        <label for="pAbsent">결석자 (선택)</label>
+        <textarea id="pAbsent" rows="12"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="go" onclick="savePeople()">저장 <span class="kbd" style="background:#4b8cf0;border-color:#4b8cf0;color:#fff">Ctrl+Enter</span></button>
+      <button onclick="closeOv()">취소 <span class="kbd">Esc</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 도움말 ══════════ -->
+<div id="ovHelp" class="ov hide" role="dialog" aria-modal="true" aria-label="도움말">
+  <div class="box" style="width:min(640px,100%)">
+    <h2>도움말</h2>
+    <table class="help">
+      <tr><td>Alt + 1~9, 0, -, =</td><td>화자 1~12번 선택. <b>한 번 고르면 계속 유지</b>되므로 사람이 바뀔 때만 누릅니다.</td></tr>
+      <tr><td>Alt + ↑ / ↓</td><td>명단 순서대로 이전 / 다음 화자</td></tr>
+      <tr><td>Alt + `</td><td>화자 미지정 (동시 발언·전원 등)</td></tr>
+      <tr><td>Enter</td><td>기록. 한글 조합 중에도 <b>한 번만</b> 누르면 됩니다.</td></tr>
+      <tr><td>Ctrl + Enter</td><td>강제 기록 — 한글 입력이 꼬였을 때의 비상 버튼</td></tr>
+      <tr><td>Shift + Enter</td><td>한 항목 안에서 줄바꿈</td></tr>
+      <tr><td>Ctrl + Alt + 숫자</td><td>방금 기록한 항목의 화자를 정정</td></tr>
+      <tr><td>Ctrl + Z</td><td>되돌리기 (삭제·수정·화자변경 모두). 입력창에 글을 쓰는 중이면 평소처럼 타이핑 되돌리기로 동작합니다.</td></tr>
+      <tr><td>F4 / F8 / F9</td><td>도움말 / 내보내기 / 참석자·결석자</td></tr>
+      <tr><td>위원회 저장</td><td>명단을 <b>위원회</b>로 저장해 두면 다음 회의는 시작 화면에서 <b>불러오기</b> 한 번으로 끝납니다.
+        회의 중에는 <span class="kbd">F9</span> 창 위쪽에서 저장·불러오기가 됩니다.</td></tr>
+      <tr><td>결석자</td><td>시작 화면 또는 <span class="kbd">F9</span> 창에서 입력. 모든 내보내기의 머리말에 표시됩니다.</td></tr>
+      <tr><td>자동 저장</td><td>입력할 때마다 이 브라우저에 저장되고 오른쪽 위에 <b>저장됨</b>이 표시됩니다.
+        빨간 <b>저장 실패!</b>가 뜨면 저절로 사라지지 않으니, 바로 <span class="kbd">F8</span> → <b>.json 저장</b>으로 백업하세요.</td></tr>
+      <tr><td>탭은 하나만</td><td>같은 회의록을 두 탭에서 열면 나중에 저장한 쪽이 상대를 덮어씁니다.
+        감지되면 <b>다른 탭 충돌!</b>이 표시됩니다.</td></tr>
+      <tr><td colspan="2" style="padding-top:14px;color:var(--dim);border-bottom-color:#d3d8e0">
+        <b>기록 수정</b></td></tr>
+      <tr><td>✎ 버튼</td><td>그 항목을 입력창으로 불러옵니다. <b>수정 중에 Alt+숫자를 누르면 그 항목의 화자가 바뀝니다.</b>
+        Enter로 저장, Esc로 취소.</td></tr>
+      <tr><td>항목 위 드롭다운</td><td>수정 모드에 들어가지 않고 화자만 바로 변경</td></tr>
+      <tr><td>안건 줄의 ✎ / ✕</td><td>안건 제목 수정 / 안건 삭제(발언은 앞 안건으로 이동)</td></tr>
+      <tr><td colspan="2" style="padding-top:14px;color:var(--dim);border-bottom-color:#d3d8e0">
+        <b>줄 맨 앞 기호</b> — 전부 문장부호라 한/영 전환이 필요 없습니다</td></tr>
+      <tr><td>! 내용</td><td><b>결정사항</b>으로 기록 (요약본·결정사항 표에 포함)</td></tr>
+      <tr><td>* 내용</td><td><b>조치사항</b>. <code>@담당자</code> <code>~기한</code>을 함께 쓸 수 있습니다.<br>
+        예) <code>* 평가계획서 재작성 @박서연 ~9/3</code></td></tr>
+      <tr><td>? 내용</td><td>질의</td></tr>
+      <tr><td># 제목</td><td><b>안건 전환</b>. 이후 발언이 이 안건 아래로 묶입니다.</td></tr>
+      <tr><td>// 내용</td><td>비공개 메모 — 내보내기에서 <b>제외</b>됩니다</td></tr>
+      <tr><td>3 내용</td><td>숫자+공백으로 그 줄만 3번 참석자로 기록</td></tr>
+      <tr><td>\ 내용</td><td>맨 앞 <code>\</code>는 위 기호를 무시하고 그대로 기록.
+        기호 뒤에 써서 <b>숫자만</b> 본문으로 남길 수도 있습니다 —
+        예) <code>! \3 학년 예산안 가결</code><br>
+        <code>2:1로 가결</code>처럼 콜론이 든 표현은 그냥 써도 화자로 해석되지 않습니다.</td></tr>
+    </table>
+    <div style="margin-top:14px"><button class="go" onclick="closeOv()">닫기 <span class="kbd" style="background:#4b8cf0;border-color:#4b8cf0;color:#fff">Esc</span></button></div>
+  </div>
+</div>
+
+<input type="file" id="fileIn" accept=".json" class="hide" aria-label="회의록 파일 불러오기">
+<input type="file" id="presetFileIn" accept=".json" class="hide" aria-label="위원회 파일 불러오기">
+
+<script>
+"use strict";
+/* ═════════ 상수·상태 ═════════ */
+var KEY  = 'meeting_note_v1';
+var AKEY = 'meeting_note_archive_v1';
+var PKEY = 'meeting_note_presets_v1';
+var COLORS = ['#1f6feb','#c2410c','#0f766e','#a21caf','#b45309','#4f46e5',
+              '#be123c','#0369a1','#4d7c0f','#7c3aed','#0d9488','#db2777'];
+var SLOTS = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6',
+             'Digit7','Digit8','Digit9','Digit0','Minus','Equal'];
+var LBL   = ['1','2','3','4','5','6','7','8','9','0','-','='];
+var S = null, undoStack = [], editingId = null, elapsedTimer = null;
+var leaving = false, saveFailed = false, warnedOtherTab = false;
+var editSeq = 0, spSnapFor = -1;   // 한 항목을 고치는 동안 스냅샷은 한 번만
+var $ = function(id){ return document.getElementById(id); };
+function reloadApp(){ leaving = true; location.reload(); }
+
+function nowIso(){ return new Date().toISOString(); }
+/* padStart(ES2017)·queueMicrotask(2018)는 학교에 남아 있는 구형 브라우저에서
+   없을 수 있다. 이 두 곳이 죽으면 회의 시작조차 못 하거나 한글 입력에
+   Enter를 두 번 눌러야 하므로, 값싼 대체 경로를 둔다. */
+function p2(n){ return (n < 10 ? '0' : '') + n; }
+var micro = (typeof queueMicrotask === 'function')
+  ? function(fn){ queueMicrotask(fn); }
+  : function(fn){ Promise.resolve().then(fn); };
+function hhmm(iso){ var d = new Date(iso);
+  return p2(d.getHours()) + ':' + p2(d.getMinutes()); }
+function ymd(iso){ var d = new Date(iso);
+  return d.getFullYear() + '. ' + (d.getMonth()+1) + '. ' + d.getDate() + '.'; }
+function esc(s){ return String(s).replace(/[<>&]/g, function(c){
+  return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function findEntry(id){
+  for (var i = 0; i < S.entries.length; i++) if (S.entries[i].id === id) return S.entries[i];
+  return null;
+}
+
+/* ═════════ 저장 / 보관 ═════════ */
+var saveTimer = null;
+function save(){
+  if (!S) return;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch(e){
+    // 직전 성공이 걸어 둔 타이머를 끄지 않으면 그 타이머가 이 경고를 지워
+    // 저장이 안 되고 있는데도 상태 표시줄이 멀쩡해 보인다
+    clearTimeout(saveTimer);
+    $('saved').style.color = 'var(--bad)';
+    $('saved').textContent = '저장 실패!';
+    if (!saveFailed) {
+      saveFailed = true;
+      alert('자동 저장에 실패했습니다. 저장 공간이 부족할 수 있습니다.\n\n' +
+            'F8 → "💾 .json 저장"으로 지금 바로 백업하시고,\n' +
+            '시작 화면에서 오래된 "지난 회의"를 삭제해 주세요.');
+    }
+    return;
+  }
+  saveFailed = false;
+  // 다른 탭 경고는 덮지 않는다 — 초록 "저장됨"으로 가리면
+  // 두 탭이 서로 덮어쓰는 중인데도 화면만 멀쩡해 보인다
+  if (warnedOtherTab) return;
+  $('saved').style.color = 'var(--ok)';
+  $('saved').textContent = '저장됨 ' + hhmm(nowIso());
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){ $('saved').textContent = ''; }, 2500);
+}
+function readArchive(){
+  try { return JSON.parse(localStorage.getItem(AKEY)) || []; } catch(e){ return []; }
+}
+var ARCH_MAX = 20;
+function writeArchive(a){
+  try { localStorage.setItem(AKEY, JSON.stringify(a.slice(0,ARCH_MAX))); return true; }
+  catch(e){ return false; }
+}
+/* 보관 실패(용량 초과)를 조용히 삼키면 이어지는 삭제로 기록이 사라진다 — 성공 여부를 돌려준다 */
+function archive(m){
+  if (!m || !m.entries || !m.entries.length) return true;
+  var arr = readArchive().filter(function(x){ return x.startedAt !== m.startedAt; });
+  arr.unshift(m);
+  // 한도를 넘으면 가장 오래된 회의가 사라진다 — 조용히 지우지 않고 알린다
+  if (arr.length > ARCH_MAX) {
+    var drop = arr[ARCH_MAX];
+    alert('보관함이 ' + ARCH_MAX + '개로 가득 차,\n' +
+          '가장 오래된 ［' + (drop.title || '제목 없음') + '］(' + ymd(drop.startedAt) + ')이(가) 삭제됩니다.\n\n' +
+          '남겨야 할 회의록은 열어서 F8 → "💾 .json 저장"으로 파일 백업해 두세요.');
+  }
+  return writeArchive(arr);
+}
+/* 다른 회의를 여는 모든 경로에서 먼저 호출한다.
+   작성 중이던 회의를 보관함에 넣지 않으면, 새 회의가 들어오는 순간
+   enterApp()의 첫 저장이 그것을 덮어써 되찾을 방법이 없다. */
+function stashLive(exceptStartedAt){
+  var cur = null;
+  try { cur = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
+  if (!cur || !cur.entries || !cur.entries.length) return true;
+  if (exceptStartedAt && cur.startedAt === exceptStartedAt) return true;
+  if (archive(cur)) return true;
+  return confirm('저장 공간이 부족해 작성 중이던 회의(［' + (cur.title || '제목 없음') +
+    '］ ' + cur.entries.length + '건)를 보관하지 못했습니다.\n' +
+    '계속하면 그 기록이 사라집니다. 계속할까요?');
+}
+/* ── 위원회(명단) 프리셋 ── */
+function lines(v){ return String(v||'').split('\n').map(function(x){ return x.trim(); }).filter(Boolean); }
+function readPresets(){
+  try { return JSON.parse(localStorage.getItem(PKEY)) || []; } catch(e){ return []; }
+}
+function writePresets(a){
+  try { localStorage.setItem(PKEY, JSON.stringify(a.slice(0,40))); return true; }
+  catch(e){ return false; }
+}
+function putPreset(name, people, title, place){
+  if (!people.length) { alert('참석자 명단이 비어 있습니다.'); return false; }
+  var arr = readPresets();
+  var i = -1;
+  for (var k = 0; k < arr.length; k++) if (arr[k].name === name) i = k;
+  if (i >= 0 && !confirm('"' + name + '" 위원회가 이미 있습니다. 덮어쓸까요?')) return false;
+  var rec = { name:name, people:people, title:title||'', place:place||'', savedAt:nowIso() };
+  if (i >= 0) arr[i] = rec; else arr.unshift(rec);
+  if (arr.length > 40) {   // writePresets가 40개에서 자른다 — 조용히 지우지 않는다
+    if (!confirm('위원회는 40개까지 저장됩니다.\n가장 오래된 ［' + arr[40].name +
+                 '］이(가) 삭제됩니다. 계속할까요?')) return false;
+  }
+  if (!writePresets(arr)) { alert('저장 공간이 부족해 위원회를 저장하지 못했습니다.'); return false; }
+  renderPresets();
+  return true;
+}
+function savePreset(){
+  var people = lines($('sPeople').value).slice(0,12);
+  var name = prompt('위원회 이름 (예: 학교운영위원회, 3학년 교과협의회)',
+                    $('sTitle').value.trim() || '');
+  if (name === null) return;
+  name = name.trim(); if (!name) return;
+  if (putPreset(name, people, $('sTitle').value.trim(), $('sPlace').value.trim()))
+    alert('"' + name + '" 위원회로 저장했습니다.');
+}
+function savePresetFromDialog(){
+  var people = lines($('pEdit').value).slice(0,12);
+  var name = prompt('위원회 이름', (S && S.presetName) || (S && S.title) || '');
+  if (name === null) return;
+  name = name.trim(); if (!name) return;
+  if (putPreset(name, people, '', (S && S.place) || '')) {
+    if (S) S.presetName = name;
+    alert('"' + name + '" 위원회로 저장했습니다.');
+  }
+}
+function usePreset(i){
+  var p = readPresets()[i]; if (!p) return;
+  $('sPeople').value = p.people.join('\n');
+  if (p.title && !$('sTitle').value.trim()) $('sTitle').value = p.title;
+  if (p.place && !$('sPlace').value.trim()) $('sPlace').value = p.place;
+  $('sTitle').focus();
+}
+function delPreset(i){
+  var arr = readPresets(); if (!arr[i]) return;
+  if (!confirm('"' + arr[i].name + '" 위원회를 삭제할까요?\n(이미 작성한 회의록에는 영향이 없습니다)')) return;
+  arr.splice(i,1); writePresets(arr); renderPresets();
+}
+function applyPresetToDialog(i){
+  if (i === '') return;
+  var p = readPresets()[parseInt(i,10)]; if (!p) return;
+  $('pEdit').value = p.people.join('\n');
+  $('pPreset').value = '';
+  if (S) S.presetName = p.name;
+}
+function renderPresets(){
+  var arr = readPresets();
+  $('presetList').innerHTML = arr.length ? arr.map(function(p,i){
+    return '<div class="arch-row">' +
+      '<span class="nm"><b>' + esc(p.name) + '</b> <span class="dt">' + p.people.length + '명 · ' +
+        esc(p.people.slice(0,4).join(', ')) + (p.people.length > 4 ? ' 외' : '') + '</span></span>' +
+      '<button class="go" onclick="usePreset(' + i + ')">불러오기</button>' +
+      '<button class="danger" onclick="delPreset(' + i + ')" title="삭제">✕</button>' +
+      '</div>';
+  }).join('') : '<div style="color:var(--dim);font-size:12px;padding:4px 8px">' +
+      '저장된 위원회가 없습니다. 참석자를 입력한 뒤 아래 버튼으로 저장해 두면 다음 회의부터 한 번에 불러올 수 있습니다.</div>';
+  var sel = $('pPreset');
+  if (sel) sel.innerHTML = '<option value="">위원회에서 명단 불러오기…</option>' +
+    arr.map(function(p,i){ return '<option value="' + i + '">' + esc(p.name) +
+      ' (' + p.people.length + '명)</option>'; }).join('');
+}
+
+/* 위원회는 브라우저 localStorage에만 있어 사이트 데이터 삭제로 사라질 수 있다.
+   파일로 내보내/불러오기 해서 다른 PC로 옮기거나 백업해 둘 수 있게 한다. */
+function ymdFile(d){
+  return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate());
+}
+function downloadJson(obj, fn){
+  var blob = new Blob([JSON.stringify(obj, null, 2)], { type:'application/json;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fn;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function exportPresets(){
+  var arr = readPresets();
+  if (!arr.length) { alert('저장된 위원회가 없습니다.'); return; }
+  downloadJson({ kind:'meeting_note_presets', presets:arr }, '위원회_' + ymdFile(new Date()) + '.json');
+}
+function importPresetsClick(){ $('presetFileIn').click(); }
+$('presetFileIn').addEventListener('change', function(e){
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    try {
+      var o = JSON.parse(String(r.result).replace(/^\uFEFF/,''));
+      var incoming = Array.isArray(o) ? o : (o.presets || []);
+      if (!incoming.length) throw 0;
+      var cur = readPresets();
+      // 'constructor' 같은 이름이 상속 속성에 걸려 덮어쓴 척하고 사라지지 않게
+      var byName = {};
+      var at = function(n){ return Object.prototype.hasOwnProperty.call(byName, n) ? byName[n] : -1; };
+      cur.forEach(function(p,i){ byName[p.name] = i; });
+      var added = 0, updated = 0, skipped = 0;
+      incoming.forEach(function(p){
+        if (!p || typeof p.name !== 'string' || !p.name.trim() ||
+            !Array.isArray(p.people) || !p.people.length) { skipped++; return; }
+        // 외부 파일이므로 형식을 강제한다 — 명단은 문자열 12명까지
+        var rec = { name: p.name, people: p.people.slice(0,12).map(String),
+                    title: typeof p.title === 'string' ? p.title : '',
+                    place: typeof p.place === 'string' ? p.place : '',
+                    savedAt: typeof p.savedAt === 'string' ? p.savedAt : nowIso() };
+        var at_i = at(rec.name);
+        if (at_i >= 0) { cur[at_i] = rec; updated++; }
+        else { cur.push(rec); byName[rec.name] = cur.length - 1; added++; }
+      });
+      if (cur.length > 40) {   // writePresets가 40개에서 자른다 — 조용히 버리지 않는다
+        alert('저장 가능한 위원회는 40개까지입니다.\n' +
+              (cur.length - 40) + '개는 저장되지 않습니다. 쓰지 않는 위원회를 먼저 삭제해 주세요.');
+      }
+      if (!writePresets(cur)) { alert('저장 공간이 부족해 위원회를 저장하지 못했습니다.'); return; }
+      renderPresets();
+      e.target.value = '';
+      alert('위원회 불러오기 완료 — 새로 추가 ' + added + '개, 덮어씀 ' + updated + '개' +
+            (skipped ? ', 건너뜀 ' + skipped + '개' : '') + '.');
+    } catch(err){
+      e.target.value = '';   // 비우지 않으면 고친 같은 파일을 다시 골라도 아무 일도 안 일어난다
+      alert('위원회 백업 파일(.json)이 아닙니다.');
+    }
+  };
+  r.readAsText(f, 'utf-8');
+});
+
+/* 전체 스냅샷은 구조를 바꾸는 작업(삭제·수정·안건·명단)에만 쓴다.
+   단순 추가는 "마지막 항목 제거"가 역연산이므로 전체 직렬화를 하지 않는다.
+   — 이게 없으면 항목이 늘수록 입력 한 번의 비용이 O(n)으로 커진다. */
+/* 되돌리기 기록은 전체 복사본이라 긴 회의에서는 금방 무거워진다.
+   개수뿐 아니라 누적 크기로도 잘라, 500건짜리 회의에서 수십 MB가 쌓이는 것을 막는다. */
+var UNDO_MAX = 50, UNDO_BYTES = 6000000;
+function trimUndo(){
+  while (undoStack.length > UNDO_MAX) undoStack.shift();
+  var total = 0;
+  for (var i = undoStack.length - 1; i >= 0; i--) {
+    total += undoStack[i].full ? undoStack[i].full.length : 0;
+    if (total > UNDO_BYTES) { undoStack.splice(0, i + 1); return; }
+  }
+}
+function snapshot(){
+  undoStack.push({ full: JSON.stringify(
+    { e:S.entries, s:S.speakers, a:S.agendas, c:S.cur, ab:S.absentees }) });
+  trimUndo();
+}
+function snapAdd(){
+  undoStack.push({ add:1 });
+  trimUndo();
+}
+function undo(){
+  var p = undoStack.pop();
+  if (!p) return;
+  editingId = null; $('inp').value = '';
+  if (p.add) {
+    // 방금 추가한 항목만 빼면 되므로 목록 전체를 다시 그리지 않는다
+    var gone = S.entries.pop();
+    if (gone) {
+      var el = $('log').querySelector('.e[data-id="' + gone.id + '"]');
+      detachAct();
+      var lastAgendaEmpty = gone.ag > 0 &&
+        !S.entries.some(function(x){ return x.ag === gone.ag; });
+      if (el && !lastAgendaEmpty && S.entries.length) el.parentNode.removeChild(el);
+      else renderLog();
+    }
+    renderSide(); renderCur(); save(); focusInput();
+    return;
+  }
+  var d = JSON.parse(p.full);
+  // 되돌리는 것은 기록이지 "지금 누가 말하는가"가 아니다.
+  // 방금 고른 화자를 되돌려 버리면 다음 발언이 엉뚱한 사람에게 붙는다.
+  var keep = S.cur;
+  S.entries = d.e; S.speakers = d.s; S.agendas = d.a;
+  S.cur = (keep === null || (typeof keep === 'number' && keep < d.s.length)) ? keep : d.c;
+  if (d.ab !== undefined) S.absentees = d.ab;
+  render(); save(); focusInput();
+}
+
+/* ═════════ 진입 ═════════ */
+window.addEventListener('load', function(){
+  var cur = null;
+  try { cur = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
+  var arch = readArchive();
+  var rows = [];
+  if (cur && cur.entries && cur.entries.length) {
+    rows.push({ m:cur, live:true });
+  }
+  arch.forEach(function(m){
+    if (!cur || m.startedAt !== cur.startedAt) rows.push({ m:m, live:false });
+  });
+  if (rows.length) {
+    $('archWrap').classList.remove('hide');
+    $('archList').innerHTML = rows.map(function(r,i){
+      return '<div class="arch-row">' +
+        '<span class="dt">' + ymd(r.m.startedAt).replace(/ /g,'') + ' ' + hhmm(r.m.startedAt) + '</span>' +
+        '<span class="nm">' + esc(r.m.title || '(제목 없음)') +
+          (r.live ? ' <b style="color:var(--acc)">· 작성 중</b>' : '') + '</span>' +
+        '<span class="dt">' + r.m.entries.length + '건</span>' +
+        '<button class="go" onclick="openRow(' + i + ')">' + (r.live ? '이어서 작성' : '열기') + '</button>' +
+        '<button class="danger" onclick="delMeeting(' + i + ')" title="이 회의록 삭제">✕</button>' +
+        '</div>';
+    }).join('');
+    window.__rows = rows;
+  }
+  renderPresets();
+  $('sTitle').focus();
+});
+/* 파일·보관함에서 불러온 데이터는 형식을 강제한다.
+   손상되거나 손으로 고친 JSON이 화면을 깨뜨리거나(잘못된 sp),
+   기록을 조용히 숨기는 일(범위 밖 ag는 어느 안건에도 안 그려짐)을 막는다. */
+function normalize(){
+  S.title = (typeof S.title === 'string' && S.title.trim()) ? S.title : '회의록';
+  S.place = (typeof S.place === 'string') ? S.place : '';
+  if (typeof S.startedAt !== 'string' || isNaN(new Date(S.startedAt).getTime())) S.startedAt = nowIso();
+  if (!Array.isArray(S.speakers)) S.speakers = [];
+  S.speakers = S.speakers.slice(0,24).map(function(sp,i){
+    return { name: (sp && typeof sp.name === 'string' && sp.name.trim()) ? sp.name : ('참석자 ' + (i+1)),
+             color: (sp && typeof sp.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(sp.color))
+                    ? sp.color : COLORS[i % COLORS.length] };
+  });
+  if (!S.speakers.length) S.speakers = [{ name:'참석자 1', color:COLORS[0] }];
+  if (!Array.isArray(S.agendas)) S.agendas = [];
+  S.agendas = S.agendas.map(function(a,i){
+    return { title: (a && typeof a.title === 'string' && a.title.trim()) ? a.title : ('안건 ' + (i+1)) };
+  });
+  S.absentees = Array.isArray(S.absentees) ? S.absentees.map(String) : [];
+  if (!Array.isArray(S.entries)) S.entries = [];
+  var nS = S.speakers.length, nA = S.agendas.length;
+  // hasOwnProperty로 확인한다 — TYPES['constructor']는 상속 값이라 통과해 버린다
+  var TYPES = { '발언':1, '결정':1, '액션':1, '질의':1 };
+  var isType = function(k){ return Object.prototype.hasOwnProperty.call(TYPES, k); };
+  var seen = {};
+  S.entries = S.entries.filter(function(t){ return t && typeof t === 'object'; })
+    .map(function(t){
+      var text = (typeof t.text === 'string') ? t.text : '';
+      var id = (typeof t.id === 'string' && /^[a-z0-9]{5,40}$/.test(t.id) && !seen[t.id]) ? t.id : uid();
+      seen[id] = 1;
+      return {
+        id: id,
+        ts: (typeof t.ts === 'string' && !isNaN(new Date(t.ts).getTime())) ? t.ts : S.startedAt,
+        sp: (typeof t.sp === 'number' && t.sp >= 0 && t.sp < nS) ? Math.floor(t.sp) : null,
+        ag: (typeof t.ag === 'number' && isFinite(t.ag)) ? Math.min(Math.max(Math.floor(t.ag), 0), nA) : 0,
+        type: isType(t.type) ? t.type : '발언',
+        raw: (typeof t.raw === 'string' && t.raw) ? t.raw : text,
+        text: text,
+        priv: !!t.priv,
+        owner: (typeof t.owner === 'string' && t.owner) ? t.owner : null,
+        due: (typeof t.due === 'string' && t.due) ? t.due : null,
+        edited: !!t.edited
+      };
+    })
+    .filter(function(t){ return t.text.trim(); });
+  S.cur = (typeof S.cur === 'number' && S.cur >= 0 && S.cur < nS) ? Math.floor(S.cur)
+        : (S.cur === null ? null : 0);
+  if (typeof S.presetName !== 'string') delete S.presetName;
+}
+function openRow(i){
+  var row = window.__rows && window.__rows[i]; if (!row) return;
+  if (!stashLive(row.m.startedAt)) return;
+  S = JSON.parse(JSON.stringify(row.m));
+  normalize();
+  undoStack = []; enterApp();
+}
+function delMeeting(i){
+  var r = window.__rows[i]; if (!r) return;
+  if (!confirm('［' + (r.m.title || '제목 없음') + '］ ' + r.m.entries.length + '건을 삭제합니다.\n' +
+               '되돌릴 수 없습니다. 계속할까요?')) return;
+  if (r.live) { try { localStorage.removeItem(KEY); } catch(e){} }
+  writeArchive(readArchive().filter(function(x){ return x.startedAt !== r.m.startedAt; }));
+  reloadApp();
+}
+
+$('setup').addEventListener('keydown', function(e){
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && e.ctrlKey) {
+    e.preventDefault(); startMeeting();
+  }
+});
+
+function startMeeting(){
+  var all = lines($('sPeople').value);
+  if (!all.length) { alert('참석자를 최소 1명 입력하세요.'); $('sPeople').focus(); return; }
+  if (all.length > 12 && !confirm('참석자가 ' + all.length + '명입니다.\n단축키는 12명까지만 지원하므로 앞 12명만 등록됩니다.\n계속할까요?')) return;
+  var names = all.slice(0,12);
+  if (!stashLive()) return;
+  S = {
+    title: $('sTitle').value.trim() || '회의록',
+    place: $('sPlace').value.trim(),
+    startedAt: nowIso(),
+    speakers: names.map(function(n,i){ return { name:n, color:COLORS[i % COLORS.length] }; }),
+    absentees: lines($('sAbsent').value),
+    agendas: [], entries: [], cur: 0
+  };
+  undoStack = []; enterApp();
+}
+function enterApp(){
+  $('setup').classList.add('hide');
+  $('app').classList.remove('hide');
+  $('hTitle').textContent = S.title;
+  updateMeta();
+  clearInterval(elapsedTimer);
+  elapsedTimer = setInterval(updateMeta, 30000);
+  render(); save(); focusInput();
+}
+function updateMeta(){
+  if (!S) return;
+  var mins = Math.max(0, Math.round((Date.now() - new Date(S.startedAt).getTime()) / 60000));
+  var el = mins < 60 ? mins + '분' : Math.floor(mins/60) + '시간 ' + (mins%60) + '분';
+  var ab = (S.absentees && S.absentees.length) ? ' (결석 ' + S.absentees.length + ')' : '';
+  $('hMeta').textContent = ymd(S.startedAt) + ' ' + hhmm(S.startedAt) +
+    (S.place ? ' · ' + S.place : '') + ' · ' + S.speakers.length + '명' + ab + ' · 경과 ' + el;
+}
+function newMeeting(){
+  if (S && S.entries.length &&
+      !confirm('새 회의를 시작합니다.\n현재 회의는 "지난 회의"에 자동 보관되므로 나중에 다시 열 수 있습니다.\n계속할까요?')) return;
+  if (!archive(S) &&
+      !confirm('저장 공간이 부족해 현재 회의를 보관하지 못했습니다.\n계속하면 현재 기록이 사라집니다. 그래도 새 회의를 시작할까요?\n(취소한 뒤 F8 → ".json 저장"으로 먼저 백업하는 것을 권장합니다)')) return;
+  try { localStorage.removeItem(KEY); } catch(e){}
+  reloadApp();
+}
+function loadFile(){ $('fileIn').click(); }
+$('fileIn').addEventListener('change', function(e){
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    try {
+      var o = JSON.parse(String(r.result).replace(/^\uFEFF/,''));
+      if (!o || !Array.isArray(o.entries)) throw 0;
+      if (!stashLive(o.startedAt)) { e.target.value = ''; return; }
+      S = o; normalize();
+      e.target.value = '';
+      undoStack = []; enterApp();
+    } catch(err){
+      e.target.value = '';
+      alert('회의록 파일(.json)이 아닙니다.');
+    }
+  };
+  r.readAsText(f, 'utf-8');
+});
+
+/* ═════════ 파싱 ═════════ */
+function parse(raw){
+  var s = raw.replace(/\s+$/,'');
+  var out = { type:'발언', priv:false, owner:null, due:null, speakerIdx:null, agenda:null, text:s };
+  if (!s) return out;
+  if (s.charAt(0) === '\\') { out.text = s.slice(1); return out; }
+  if (s.slice(0,2) === '//') { out.priv = true; s = s.slice(2).replace(/^\s+/,''); }
+  if (s.charAt(0) === '#') {
+    // 안건 제목은 모든 내보내기의 소제목으로 나가므로 비공개로 만들 수 없다.
+    // '//'가 붙었다면 안건이 아니라 비공개 메모로 남긴다.
+    if (out.priv) { out.text = s; return out; }
+    out.agenda = s.slice(1).trim(); return out;
+  }
+  var c = s.charAt(0);
+  if (c === '!')      { out.type = '결정'; s = s.slice(1).replace(/^\s+/,''); }
+  else if (c === '*') { out.type = '액션'; s = s.slice(1).replace(/^\s+/,''); }
+  else if (c === '?') { out.type = '질의'; s = s.slice(1).replace(/^\s+/,''); }
+  // 숫자 뒤에 반드시 공백을 요구한다. 콜론까지 허용하면 회의록에 흔한
+  // "2:1로 가결"이 2번 참석자의 "1로 가결"로 둔갑한다.
+  // 기호를 뗀 뒤에도 '\'로 숫자 해석을 끌 수 있어야 한다. 그러지 않으면
+  // "! 3 학년 예산안 가결"의 "3 "이 화자 지정으로 먹히는 것을 막을 방법이 없다.
+  if (s.charAt(0) === '\\') { s = s.slice(1); }
+  else {
+    var m = s.match(/^(\d{1,2})\s+([\s\S]+)$/);
+    if (m) { var n = parseInt(m[1],10);
+      if (n >= 1 && n <= S.speakers.length) { out.speakerIdx = n - 1; s = m[2]; } }
+  }
+  if (out.type === '액션') {
+    var om = s.match(/(?:^|\s)@(\S+)/);
+    if (om) { out.owner = om[1]; s = s.replace(om[0],' ').replace(/\s+/g,' ').trim(); }
+    var dm = s.match(/(?:^|\s)~(\S+)/);
+    if (dm) { out.due = dm[1]; s = s.replace(dm[0],' ').replace(/\s+/g,' ').trim(); }
+  }
+  out.text = s;
+  return out;
+}
+
+/* ═════════ 입력 루프 ═════════ */
+var inp = $('inp');
+var composing = false, queued = false;
+
+inp.addEventListener('compositionstart', function(){ composing = true; });
+inp.addEventListener('compositionend', function(){
+  composing = false;
+  if (queued) { queued = false; micro(commit); }   // 타이머 금지
+});
+inp.addEventListener('keydown', function(e){
+  // 일부 가상 키보드는 code를 비워 보내므로 key도 함께 본다
+  if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && e.key !== 'Enter') return;
+  if (e.shiftKey) return;
+  if (e.ctrlKey) { e.preventDefault(); composing = false; queued = false; commit(); return; }
+  e.preventDefault();
+  if (composing || e.isComposing || e.keyCode === 229) { queued = true; return; }
+  commit();
+});
+// 로그에서 마우스로 글자를 선택하는 동안에는 포커스를 뺏지 않는다
+inp.addEventListener('blur', function(){
+  setTimeout(function(){
+    if (String(window.getSelection())) return;
+    var a = document.activeElement;
+    if (a && a !== document.body &&
+        /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(a.tagName)) return;
+    focusInput();
+  }, 0);
+});
+/* 선택이 풀리는 순간 입력창으로 돌려놓는다.
+   이게 없으면 로그에서 글자를 한 번 선택한 뒤 포커스가 <body>에 갇혀
+   이후 타이핑이 화면 어디에도 들어가지 않고 통째로 사라진다. */
+document.addEventListener('mouseup', function(){
+  setTimeout(function(){ if (!String(window.getSelection())) focusInput(); }, 0);
+});
+function focusInput(){
+  if (document.querySelector('.ov:not(.hide)')) return;
+  if ($('app').classList.contains('hide')) return;
+  if (document.activeElement !== inp) inp.focus();
+}
+
+function commit(){
+  if (document.querySelector('.ov:not(.hide)')) return;   // 창이 열려 있으면 기록하지 않는다
+  var raw = inp.value.replace(/\s+$/,'');
+  if (!raw.trim()) {
+    inp.value = '';
+    // 수정 중이었다면 편집 상태를 반드시 푼다.
+    // 남겨 두면 다음에 입력한 문장이 새 기록이 아니라 그 항목을 덮어쓴다.
+    if (editingId) cancelEdit();
+    return;
+  }
+  var p = parse(raw);
+  // 새 항목 추가(가장 잦은 경로)는 가벼운 undo 기록만 남긴다
+  if (p.agenda === null && !editingId && p.text.trim()) snapAdd(); else snapshot();
+
+  if (p.agenda !== null) {
+    var title = p.agenda || ('안건 ' + (S.agendas.length + 1));
+    S.agendas.push({ title: title });
+    inp.value = '';
+    var wasEditing = editingId ? findEntry(editingId) : null;
+    editingId = null;
+    var log = $('log');
+    if (!log.querySelector('.e,.agsep')) renderLog();
+    else {
+      if (wasEditing) refreshRow(wasEditing);
+      log.insertAdjacentHTML('beforeend',
+        agendaHtml(S.agendas.length, title) + '<div class="empty">아직 발언이 없습니다</div>');
+      scrollLogEnd();
+    }
+    renderSide(); renderCur(); save(); return;
+  }
+  // "!" 처럼 기호만 친 줄은 버린다. 수정 중이었다면 편집 상태도 반드시 푼다 —
+  // 남겨 두면 다음에 입력한 문장이 새 기록이 아니라 그 항목을 덮어쓴다.
+  if (!p.text.trim()) {
+    undoStack.pop(); inp.value = '';
+    if (editingId) cancelEdit();
+    return;
+  }
+  if (editingId) {
+    var t = findEntry(editingId);
+    if (t) {
+      t.raw = raw; t.text = p.text; t.type = p.type; t.priv = p.priv;
+      t.owner = p.owner; t.due = p.due; t.edited = true;
+      if (p.speakerIdx !== null) t.sp = p.speakerIdx;
+    }
+    editingId = null; inp.value = '';
+    refreshRow(t); renderSide(); renderCur(); save(); return;
+  }
+  var ne = {
+    id: uid(), ts: nowIso(),
+    sp: (p.speakerIdx !== null ? p.speakerIdx : S.cur),
+    ag: S.agendas.length,
+    type: p.type, raw: raw, text: p.text,
+    priv: p.priv, owner: p.owner, due: p.due, edited: false
+  };
+  S.entries.push(ne);
+  inp.value = '';
+  appendEntry(ne); save();
+}
+
+/* ═════════ 단축키 ═════════ */
+document.addEventListener('keydown', function(e){
+  if (e.code === 'Escape') {
+    // 한글 조합을 취소하는 Esc가 편집 취소·창 닫기까지 하지 않도록 조합 중에는 무시
+    if (e.isComposing || e.keyCode === 229) return;
+    if (document.querySelector('.ov:not(.hide)')) { closeOv(); e.preventDefault(); return; }
+    if (editingId) { cancelEdit(); focusInput(); e.preventDefault(); }
+    return;
+  }
+  if (!$('ovPeople').classList.contains('hide')) {
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && e.ctrlKey) {
+      e.preventDefault(); savePeople();
+    }
+    return;
+  }
+  if (document.querySelector('.ov:not(.hide)')) return;
+  if ($('app').classList.contains('hide')) return;
+
+  // 포커스가 입력창 밖으로 빠진 채 타이핑이 시작되면 되돌린다 (마지막 안전망)
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 &&
+      (!document.activeElement || document.activeElement === document.body)) {
+    focusInput();
+  }
+
+  if (e.code === 'F4') { e.preventDefault(); openHelp();   return; }
+  if (e.code === 'F8') { e.preventDefault(); openExport(); return; }
+  if (e.code === 'F9') { e.preventDefault(); openPeople(); return; }
+  // 입력창에 글이 있으면 Ctrl+Z는 브라우저 기본 "타이핑 되돌리기"에 양보한다
+  if (e.code === 'KeyZ' && e.ctrlKey && !e.altKey && !inp.value.trim()) {
+    e.preventDefault(); undo(); return;
+  }
+
+  if (!e.altKey) return;      // RightAlt(한/영)는 altKey를 세우지 않으므로 안전
+
+  var idx = SLOTS.indexOf(e.code);
+  if (idx >= 0) {
+    e.preventDefault();
+    if (idx >= S.speakers.length) return;
+    if (e.ctrlKey) retagLast(idx); else setCur(idx);
+    return;
+  }
+  if (e.code === 'Backquote') { e.preventDefault(); setCur(null); return; }
+  if (e.code === 'ArrowUp')   { e.preventDefault(); step(-1);     return; }
+  if (e.code === 'ArrowDown') { e.preventDefault(); step(1);      return; }
+});
+
+/* 수정 중이면 "그 항목"의 화자를, 아니면 다음 발언의 화자를 바꾼다.
+   회의 내내 가장 자주 눌리는 키이므로 발언 목록은 건드리지 않는다 */
+function setCur(i){
+  if (editingId) {
+    var t = findEntry(editingId);
+    if (t) {
+      if (t.sp === i) { focusInput(); return; }
+      // Alt+↑/↓를 누르고 있으면 화자가 매번 달라져 스냅샷이 쌓이고,
+      // 진짜 되돌릴 기록이 50개 한도 밖으로 밀려난다. 편집 한 번당 한 번만 남긴다.
+      if (spSnapFor !== editSeq) { snapshot(); spSnapFor = editSeq; }
+      t.sp = i;
+      refreshRow(t); renderSide(); renderCur(); save(); focusInput(); return;
+    }
+  }
+  S.cur = i; renderSide(); renderCur(); save(); focusInput();
+}
+function curSpeakerIdx(){
+  if (editingId) { var t = findEntry(editingId); if (t) return t.sp; }
+  return S.cur;
+}
+function step(d){
+  var n = S.speakers.length; if (!n) return;
+  var c = curSpeakerIdx();
+  // 미지정에서 위로 가면 마지막 사람, 아래로 가면 첫 사람이어야 한다
+  if (c === null || c === undefined) { setCur(d > 0 ? 0 : n - 1); return; }
+  setCur(((c + d) % n + n) % n);
+}
+function retagLast(idx){
+  if (editingId) { setCur(idx); return; }
+  if (!S.entries.length) return;
+  snapshot();
+  var last = S.entries[S.entries.length - 1];
+  last.sp = idx;
+  S.cur = idx;
+  refreshRow(last); renderSide(); renderCur(); save(); focusInput();
+}
+function setEntrySpeaker(id, v){
+  var t = findEntry(id); if (!t) return;
+  snapshot();
+  t.sp = (v === '' ? null : parseInt(v,10));
+  refreshRow(t); renderSide(); renderCur(); save(); focusInput();
+}
+
+/* ═════════ 렌더 ═════════ */
+function speakerOptions(cur){
+  var o = '<option value=""' + (cur === null ? ' selected' : '') + '>미지정</option>';
+  for (var i = 0; i < S.speakers.length; i++) {
+    o += '<option value="' + i + '"' + (cur === i ? ' selected' : '') + '>' +
+         esc(S.speakers[i].name) + '</option>';
+  }
+  return o;
+}
+/* 화자 드롭다운은 열 때 비로소 항목을 채운다.
+   300건 회의에서 행마다 13개 option을 미리 만들면 렌더가 수천 개 노드를 다시 만든다. */
+function fillSpk(el){
+  if (el.getAttribute('data-filled')) return;
+  el.setAttribute('data-filled','1');
+  var cur = el.value;
+  el.innerHTML = speakerOptions(cur === '' ? null : parseInt(cur,10));
+  el.value = cur;
+}
+function entryHtml(t){
+  var sp  = (t.sp === null || t.sp === undefined) ? null : S.speakers[t.sp];
+  var who = sp ? esc(sp.name) : '<span style="color:var(--dim);font-weight:400">미지정</span>';
+  var col = sp ? sp.color : '#94a3b8';
+  var tag = (t.type !== '발언') ? '<span class="tag t-' + t.type + '">' + t.type + '</span>' : '';
+  var meta = '';
+  if (t.owner)  meta += ' <span class="meta2">담당 ' + esc(t.owner) + '</span>';
+  if (t.due)    meta += ' <span class="meta2">기한 ' + esc(t.due) + '</span>';
+  if (t.edited) meta += ' <span class="meta2">(수정)</span>';
+  return '<div class="e' + (t.priv ? ' priv' : '') + (editingId === t.id ? ' sel' : '') +
+    '" data-id="' + t.id + '">' +
+    '<span class="tm">' + hhmm(t.ts) + '</span>' +
+    '<span class="who" style="color:' + col + '"' +
+      (sp ? ' title="' + esc(sp.name) + '"' : '') + '>' + who + '</span>' +
+    '<span class="bd">' + tag + esc(t.text) + meta + '</span>' +
+    '</div>';
+}
+
+/* 조작 버튼(화자 드롭다운·수정·삭제)은 마우스를 올린 줄에만 붙인다.
+   500줄에 미리 깔면 줄당 노드가 4개에서 9개로 늘고, 새 발언을 한 줄 넣을 때마다
+   그만큼 커진 목록 전체의 레이아웃을 다시 계산하게 된다(500건에서 12ms).
+   요소 하나를 재사용하므로 항목이 늘어도 비용이 그대로다. */
+var actBox = null, actId = null;
+function actEl(){
+  if (actBox) return actBox;
+  actBox = document.createElement('span');
+  actBox.className = 'act';
+  actBox.innerHTML =
+    '<select title="화자 변경"></select>' +
+    '<button type="button" title="수정">✎</button>' +
+    '<button type="button" title="삭제">✕</button>';
+  var sel = actBox.children[0];
+  sel.addEventListener('mousedown', function(){ fillSpk(sel); });
+  sel.addEventListener('focus',     function(){ fillSpk(sel); });
+  sel.addEventListener('change',    function(){ if (actId) setEntrySpeaker(actId, sel.value); });
+  actBox.children[1].addEventListener('click', function(){ if (actId) editEntry(actId); });
+  actBox.children[2].addEventListener('click', function(){ if (actId) delEntry(actId); });
+  return actBox;
+}
+/* 목록 DOM을 갈아엎기 전에 떼어 둔다 — 안 그러면 재사용 요소가 같이 사라진다 */
+function detachAct(){
+  if (actBox && actBox.parentNode) actBox.parentNode.removeChild(actBox);
+  actId = null;
+}
+function attachAct(row){
+  if (!S) return;
+  var id = row.getAttribute('data-id');
+  if (!id) return;
+  if (actId === id && actBox && actBox.parentNode === row) return;
+  var t = findEntry(id); if (!t) return;
+  var el = actEl(), sel = el.children[0];
+  actId = id;
+  var sp = (t.sp === null || t.sp === undefined) ? null : S.speakers[t.sp];
+  sel.removeAttribute('data-filled');
+  sel.innerHTML = '<option value="' + (sp ? t.sp : '') + '">' +
+                  (sp ? esc(sp.name) : '미지정') + '</option>';
+  row.appendChild(el);
+}
+$('log').addEventListener('mouseover', function(e){
+  var n = e.target;
+  while (n && n !== this && !(n.classList && n.classList.contains('e'))) n = n.parentNode;
+  if (n && n !== this) attachAct(n);
+  else if (actBox && !actBox.contains(e.target)) detachAct();
+});
+$('log').addEventListener('mouseleave', function(){
+  // 드롭다운을 펼쳐 둔 채 목록을 벗어나는 경우는 남겨 둔다
+  if (document.activeElement !== (actBox && actBox.children[0])) detachAct();
+});
+
+function render(){ renderSide(); renderLog(); renderCur(); }
+
+/* 항목 하나만 다시 그린다.
+   500건 회의에서 renderLog()는 4천 개가 넘는 노드를 다시 만들어 120ms쯤 걸린다.
+   화자 변경·수정 표시처럼 한 줄만 달라지는 일에 그 비용을 치르면
+   Alt+숫자를 누를 때마다 타이핑이 끊긴다. id는 normalize()에서 검증된 값이라
+   선택자에 그대로 넣어도 안전하다. */
+function refreshRow(t){
+  if (!t) return;
+  var el = $('log').querySelector('.e[data-id="' + t.id + '"]');
+  if (!el) { renderLog(); return; }
+  if (actBox && el.contains(actBox)) detachAct();
+  el.outerHTML = entryHtml(t);
+}
+function agendaHtml(no, title){
+  return '<div class="agsep"><span>안건 ' + no + '. ' + esc(title) + '</span><span class="sp2"></span>' +
+    '<span class="act">' +
+      '<button onclick="renameAgenda(' + no + ')" title="제목 수정">✎</button>' +
+      '<button class="danger" onclick="delAgenda(' + no + ')" title="안건 삭제">✕</button>' +
+    '</span></div>';
+}
+
+/* 맨 아래로 스크롤하려면 scrollHeight를 읽어야 하는데, 이는 목록 전체의
+   레이아웃을 그 자리에서 강제한다(500건에서 12ms). 키 핸들러 안에서 하면
+   그 시간만큼 다음 키 입력 처리가 밀리므로, 화면을 그리기 직전으로 미룬다.
+   연속 입력은 한 번으로 합쳐진다. */
+var scrollQueued = false;
+function scrollLogEnd(){
+  if (scrollQueued) return;
+  scrollQueued = true;
+  requestAnimationFrame(function(){
+    scrollQueued = false;
+    var log = $('log');
+    log.scrollTop = log.scrollHeight;
+  });
+}
+
+/* 새 항목 추가 전용 빠른 경로.
+   목록 전체를 다시 그리면 노드 수천 개를 새로 만들게 되므로 이어붙이기만 한다. */
+function appendEntry(t){
+  var log = $('log');
+  if (!log.querySelector('.e,.agsep')) { renderLog(); }
+  else {
+    var last = log.lastElementChild;
+    if (last && last.className === 'empty') last.parentNode.removeChild(last);
+    log.insertAdjacentHTML('beforeend', entryHtml(t));
+    scrollLogEnd();
+  }
+  renderSide(); renderCur();
+}
+
+/* 매 Enter마다 호출되므로 통계는 한 번의 순회로 만든다 */
+function renderSide(){
+  var counts = {}, unassigned = 0, dec = 0, act = 0, pv = 0;
+  for (var k = 0; k < S.entries.length; k++) {
+    var t = S.entries[k];
+    if (t.sp === null || t.sp === undefined) unassigned++;
+    else counts[t.sp] = (counts[t.sp] || 0) + 1;
+    if (t.type === '결정') dec++;
+    else if (t.type === '액션') act++;
+    if (t.priv) pv++;
+  }
+  var sel = curSpeakerIdx();
+  $('people').innerHTML = S.speakers.map(function(sp,i){
+    return '<div class="sp-row' + (sel === i ? ' on' : '') + '" onclick="setCur(' + i + ')">' +
+      '<span class="n">' + (LBL[i] || '·') + '</span>' +
+      '<span class="dot" style="background:' + sp.color + '"></span>' +
+      '<span class="nm">' + esc(sp.name) + '</span>' +
+      '<span class="ct">' + (counts[i] || 0) + '</span></div>';
+  }).join('') +
+  '<div class="sp-row' + (sel === null ? ' on' : '') + '" onclick="setCur(null)">' +
+    '<span class="n">`</span><span class="dot" style="background:#94a3b8"></span>' +
+    '<span class="nm" style="color:var(--dim)">미지정</span>' +
+    '<span class="ct">' + unassigned + '</span></div>';
+
+  $('stat').innerHTML = '전체 <b>' + S.entries.length + '</b>건' +
+    (pv ? ' <span style="font-size:11px">(비공개 ' + pv + ')</span>' : '') +
+    '<br>결정 <b>' + dec + '</b> · 조치 <b>' + act + '</b><br>안건 <b>' + S.agendas.length + '</b>개';
+}
+
+// 발언 목록 — 안건은 발언이 없어도 항상 표시
+function renderLog(){
+  detachAct();
+  var html = '';
+  var b = bucketize(S.entries);
+  b[0].forEach(function(t){ html += entryHtml(t); });
+  S.agendas.forEach(function(a,i){
+    var no = i + 1;
+    html += agendaHtml(no, a.title);
+    if (!b[no].length) html += '<div class="empty">아직 발언이 없습니다</div>';
+    b[no].forEach(function(t){ html += entryHtml(t); });
+  });
+  $('log').innerHTML = html || '<div style="color:var(--dim);padding:20px 8px">' +
+    'Alt+숫자로 화자를 고르고, 발언을 입력한 뒤 Enter를 누르세요. F4로 도움말을 볼 수 있습니다.</div>';
+  scrollLogEnd();
+}
+
+function renderCur(){
+  var ci = curSpeakerIdx();
+  var c = (ci === null || ci === undefined) ? null : S.speakers[ci];
+  $('cur').innerHTML =
+    '<span class="chip" style="background:' + (c ? c.color : '#94a3b8') + '">' +
+      (c ? esc(c.name) : '미지정') + '</span>' +
+    (editingId ? '<span class="editing">수정 중 — Alt+숫자로 화자 변경 · Enter 저장 · Esc 취소</span>' : '') +
+    '<span class="hint">Alt+숫자 화자 · <b>!</b>결정 <b>*</b>조치 <b>#</b>안건 <b>?</b>질의 <b>//</b>비공개 · Enter 기록</span>';
+}
+
+function editEntry(id){
+  var t = findEntry(id); if (!t) return;
+  // 입력창에 아직 기록하지 않은 문장이 있으면 말없이 지우지 않는다 —
+  // 프로그램이 값을 바꾸면 브라우저 되돌리기로도 되살릴 수 없다
+  if (!editingId && inp.value.trim() &&
+      !confirm('입력 중인 내용이 있습니다.\n지우고 이 항목을 수정할까요?')) { focusInput(); return; }
+  editSeq++;
+  var prev = editingId ? findEntry(editingId) : null;
+  editingId = id; inp.value = t.raw;
+  if (prev && prev.id !== id) refreshRow(prev);
+  // 수정 중에는 그 항목의 화자가 기준이 되므로 옆 목록의 강조도 함께 옮긴다
+  refreshRow(t); renderSide(); renderCur(); focusInput();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+}
+/* 편집 상태를 푼다. 강조 표시가 그 항목에 남아 있고 옆 목록도 그 항목의
+   화자를 가리키고 있으므로 둘 다 되돌려야 화면이 서로 어긋나지 않는다. */
+function cancelEdit(){
+  if (!editingId) return;
+  var was = findEntry(editingId);
+  editingId = null; inp.value = '';
+  refreshRow(was); renderSide(); renderCur();
+}
+function delEntry(id){
+  var t = findEntry(id); if (!t) return;
+  snapshot();
+  var ag = t.ag;
+  S.entries = S.entries.filter(function(x){ return x.id !== id; });
+  if (editingId === id) { editingId = null; inp.value = ''; }
+  // 안건이 비면 "발언 없음" 자리표시가 필요하므로 그때만 목록을 다시 그린다
+  // 안건이 비면 "발언 없음" 자리표시가, 전체가 비면 안내문이 필요하다
+  var needFull = (ag > 0 && !S.entries.some(function(x){ return x.ag === ag; })) ||
+                 (!S.entries.length && !S.agendas.length);
+  var el = $('log').querySelector('.e[data-id="' + id + '"]');
+  detachAct();
+  if (el && !needFull) el.parentNode.removeChild(el); else renderLog();
+  renderSide(); renderCur(); save(); focusInput();
+}
+function renameAgenda(no){
+  var a = S.agendas[no-1]; if (!a) return;
+  var v = prompt('안건 ' + no + ' 제목', a.title);
+  if (v === null) { focusInput(); return; }
+  snapshot(); a.title = v.trim() || a.title;
+  render(); save(); focusInput();
+}
+function delAgenda(no){
+  var items = S.entries.filter(function(t){ return t.ag === no; }).length;
+  if (!confirm('안건 ' + no + '을(를) 삭제합니다.' +
+      (items ? '\n이 안건의 발언 ' + items + '건은 바로 앞 안건으로 옮겨집니다.' : ''))) { focusInput(); return; }
+  snapshot();
+  S.agendas.splice(no-1, 1);
+  S.entries.forEach(function(t){
+    if (t.ag === no) t.ag = no - 1;
+    else if (t.ag > no) t.ag = t.ag - 1;
+  });
+  render(); save(); focusInput();
+}
+
+/* ═════════ 참석자 편집 ═════════ */
+function openPeople(){
+  $('pEdit').value   = S.speakers.map(function(s){ return s.name; }).join('\n');
+  $('pAbsent').value = (S.absentees || []).join('\n');
+  renderPresets();
+  $('ovPeople').classList.remove('hide'); $('pEdit').focus();
+}
+function savePeople(){
+  var all = lines($('pEdit').value);
+  if (!all.length) { alert('최소 1명은 있어야 합니다.'); return; }
+  if (all.length > 12 && !confirm('12명까지만 단축키가 지원됩니다. 앞 12명만 등록됩니다. 계속할까요?')) return;
+  var names = all.slice(0,12);
+  snapshot();
+
+  /* 이름이 같아도 서로 다른 사람이다. 한 번 짝지은 자리를 다시 쓰지 않아야
+     둘째 동명이인의 발언이 첫째 사람에게 통째로 합쳐지지 않는다. */
+  var taken = [], map = {}, leftover = [], i;
+  var pick = function(nm){
+    for (var k = 0; k < names.length; k++) if (names[k] === nm && !taken[k]) { taken[k] = 1; return k; }
+    return -1;
+  };
+  for (i = 0; i < S.speakers.length; i++) {
+    var ni = pick(S.speakers[i].name);
+    if (ni >= 0) map[i] = ni; else leftover.push(i);
+  }
+  var newSp = names.map(function(n,k){ return { name:n, color:COLORS[k % COLORS.length] }; });
+  for (i = 0; i < S.speakers.length; i++)          // 쓰던 색을 그대로 유지
+    if (map[i] !== undefined) newSp[map[i]].color = S.speakers[i].color;
+  // 명단에서 빠졌지만 발언이 남아 있는 사람은 목록 끝에 보존한다
+  var lost = [];
+  leftover.forEach(function(k){
+    var used = S.entries.some(function(t){ return t.sp === k; });
+    if (!used) { map[k] = null; return; }
+    if (newSp.length < 24) { map[k] = newSp.length; newSp.push(S.speakers[k]); }
+    else { map[k] = null; lost.push(S.speakers[k].name); }
+  });
+  // 발언이 통째로 미지정이 되는 일을 말없이 하지 않는다.
+  // 여기까지 S는 아직 그대로이므로 되돌릴 것 없이 빠져나갈 수 있다.
+  if (lost.length) {
+    undoStack.pop();
+    alert('보존 가능한 화자가 24명을 넘어 ［' + lost.join(', ') + '］의 발언이 미지정이 됩니다.\n' +
+          '저장하지 않았습니다. F8 → "💾 .json 저장"으로 백업한 뒤 명단을 정리해 주세요.');
+    return;
+  }
+  S.entries.forEach(function(t){
+    if (t.sp !== null && t.sp !== undefined && map[t.sp] !== undefined) t.sp = map[t.sp];
+  });
+  S.speakers = newSp;
+  S.absentees = lines($('pAbsent').value);
+  // 미지정은 사용자가 일부러 고른 상태이므로 유지한다
+  if (S.cur !== null && S.cur !== undefined) {
+    S.cur = (map[S.cur] !== undefined) ? map[S.cur] : 0;
+    if (S.cur !== null && S.cur >= S.speakers.length) S.cur = 0;
+  }
+  closeOv(); updateMeta(); render(); save();
+}
+
+/* ═════════ 내보내기 ═════════ */
+function pub(){ return S.entries.filter(function(t){ return !t.priv; }); }
+function nameOf(t){
+  var s = (t.sp === null || t.sp === undefined) ? null : S.speakers[t.sp];
+  return s ? s.name : '미지정';
+}
+function endInfo(){
+  // 내보내기 머리말이므로 비공개 항목은 세지 않는다 —
+  // 회의 뒤 남긴 개인 메모 시각이 공문서의 종료 시각으로 나가면 안 된다.
+  var es = pub();
+  if (!es.length) return null;
+  var last = es[es.length-1].ts;
+  var mins = Math.max(0, Math.round((new Date(last) - new Date(S.startedAt)) / 60000));
+  return { at: hhmm(last), mins: mins };
+}
+/* 안건별 분류를 한 번의 순회로 — 안건 수만큼 전체 목록을 다시 거르지 않는다 */
+function bucketize(list){
+  var b = [];
+  for (var i = 0; i <= S.agendas.length; i++) b.push([]);
+  for (var j = 0; j < list.length; j++) {
+    var t = list[j];
+    b[(typeof t.ag === 'number' && t.ag >= 1 && t.ag <= S.agendas.length) ? t.ag : 0].push(t);
+  }
+  return b;
+}
+function groupsFor(list){
+  var b = bucketize(list);
+  var g = [{ no:0, title:null, items:b[0] }];
+  S.agendas.forEach(function(a,i){ g.push({ no:i+1, title:a.title, items:b[i+1] }); });
+  return g;
+}
+function pre(t){ return t.type === '결정' ? '[결정] ' : t.type === '액션' ? '[조치] ' :
+                        t.type === '질의' ? '[질의] ' : ''; }
+
+/* Shift+Enter로 넣은 줄바꿈과 본문 속 '|'가 내보내기 형식을 깨뜨리지 않게 다듬는다.
+   - 표 칸의 '|'는 그대로 두면 열이 하나 더 생겨 표 전체가 어긋난다
+   - 목록 항목의 둘째 줄은 들여쓰지 않으면 그 줄에서 목록이 끊긴다
+   - HTML은 줄바꿈을 공백으로 접으므로 <br>로 바꿔야 한글·워드에 그대로 들어간다 */
+function mdCell(s){ return String(s).replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>'); }
+function mdItem(s, indent){ return String(s).replace(/\r?\n/g, '\n' + indent); }
+function htmlText(s){ return esc(s).replace(/\r?\n/g, '<br>'); }
+
+function buildMd(){
+  var L = [], ei = endInfo();
+  L.push('# ' + S.title, '');
+  L.push('- **일시**: ' + ymd(S.startedAt) + ' ' + hhmm(S.startedAt) +
+         (ei ? ' ~ ' + ei.at + ' (' + ei.mins + '분)' : ''));
+  if (S.place) L.push('- **장소**: ' + S.place);
+  L.push('- **참석**: ' + S.speakers.map(function(s){ return s.name; }).join(', ') +
+         ' (' + S.speakers.length + '명)');
+  if (S.absentees && S.absentees.length)
+    L.push('- **결석**: ' + S.absentees.join(', ') + ' (' + S.absentees.length + '명)');
+  var es = pub();
+  if (!es.length) { L.push('', '_기록 없음_'); return L.join('\n'); }
+  groupsFor(es).forEach(function(g){
+    // 안건은 기록이 없어도 제목을 남긴다. 통째로 빼면 안건 번호에 구멍이 생겨
+    // 읽는 사람이 회의록이 누락된 것으로 오해한다.
+    if (!g.items.length && g.no === 0) return;
+    L.push('');
+    L.push(g.no === 0 ? '## 개회' : ('## 안건 ' + g.no + '. ' + g.title));
+    L.push('');
+    if (!g.items.length) { L.push('_기록된 발언 없음_'); return; }
+    g.items.forEach(function(t){
+      var suf = '';
+      if (t.owner) suf += ' _(담당: ' + t.owner + ')_';
+      if (t.due)   suf += ' _(기한: ' + t.due + ')_';
+      var p = pre(t);
+      L.push('- `' + hhmm(t.ts) + '` **' + nameOf(t) + '** — ' +
+             (p ? '**' + p.trim() + '** ' : '') + mdItem(t.text, '  ') + suf);
+    });
+  });
+  var dec = es.filter(function(t){ return t.type === '결정'; });
+  var act = es.filter(function(t){ return t.type === '액션'; });
+  if (dec.length) {
+    L.push('', '## 결정사항', '');
+    dec.forEach(function(t,i){ L.push((i+1) + '. ' + mdItem(t.text, '   ') + ' _(' + nameOf(t) + ')_'); });
+  }
+  if (act.length) {
+    L.push('', '## 조치사항', '', '| 담당 | 내용 | 기한 |', '|---|---|---|');
+    act.forEach(function(t){
+      L.push('| ' + mdCell(t.owner || nameOf(t)) + ' | ' + mdCell(t.text) + ' | ' +
+             mdCell(t.due || '-') + ' |');
+    });
+  }
+  return L.join('\n');
+}
+
+function buildTxt(){
+  var L = [], ei = endInfo();
+  L.push('［' + S.title + '］');
+  L.push('일시: ' + ymd(S.startedAt) + ' ' + hhmm(S.startedAt) +
+         (ei ? ' ~ ' + ei.at + ' (' + ei.mins + '분)' : ''));
+  if (S.place) L.push('장소: ' + S.place);
+  L.push('참석: ' + S.speakers.map(function(s){ return s.name; }).join(', ') +
+         ' (' + S.speakers.length + '명)');
+  if (S.absentees && S.absentees.length)
+    L.push('결석: ' + S.absentees.join(', ') + ' (' + S.absentees.length + '명)');
+  L.push('', '──────────────────────────────────────────────', '');
+  var first = true;
+  groupsFor(pub()).forEach(function(g){
+    if (!g.items.length && g.no === 0) return;
+    if (g.no > 0) {
+      if (!first) L.push('');
+      L.push('◆ 안건 ' + g.no + '. ' + g.title, '');
+    }
+    first = false;
+    if (!g.items.length) { L.push('  (기록된 발언 없음)'); return; }
+    g.items.forEach(function(t){
+      var suf = '';
+      if (t.owner) suf += ' (담당: ' + t.owner + ')';
+      if (t.due)   suf += ' (기한: ' + t.due + ')';
+      // 둘째 줄이 0열에 붙으면 시각 없는 새 항목처럼 보인다
+      var head = hhmm(t.ts) + '  ' + nameOf(t) + ': ';
+      L.push(head + pre(t) + mdItem(t.text, new Array(head.length + 1).join(' ')) + suf);
+    });
+  });
+  var es = pub();
+  var dec = es.filter(function(t){ return t.type === '결정'; });
+  var act = es.filter(function(t){ return t.type === '액션'; });
+  if (dec.length) {
+    L.push('', '■ 결정사항');
+    dec.forEach(function(t,i){ L.push('  ' + (i+1) + '. ' + mdItem(t.text, '     ') +
+      ' (' + nameOf(t) + ')'); });
+  }
+  if (act.length) {
+    L.push('', '■ 조치사항');
+    act.forEach(function(t,i){
+      L.push('  ' + (i+1) + '. ' + mdItem(t.text, '     ') + ' — 담당 ' + (t.owner || nameOf(t)) +
+             (t.due ? ', 기한 ' + t.due : ''));
+    });
+  }
+  return L.join('\n');
+}
+
+function buildSum(){
+  var es = pub();
+  var dec = es.filter(function(t){ return t.type === '결정'; });
+  var act = es.filter(function(t){ return t.type === '액션'; });
+  var L = ['［' + S.title + '］ 요약  ' + ymd(S.startedAt) + ' ' + hhmm(S.startedAt), ''];
+  L.push('■ 결정사항');
+  if (dec.length) dec.forEach(function(t,i){ L.push('  ' + (i+1) + '. ' +
+    mdItem(t.text, '     ') + ' (' + nameOf(t) + ')'); });
+  else L.push('  (없음)');
+  L.push('', '■ 조치사항');
+  if (act.length) act.forEach(function(t,i){
+    L.push('  ' + (i+1) + '. ' + mdItem(t.text, '     ') + ' — 담당 ' + (t.owner || nameOf(t)) +
+           (t.due ? ', 기한 ' + t.due : ''));
+  });
+  else L.push('  (없음)');
+  return L.join('\n');
+}
+
+/* 한글·워드용 서식 유지 HTML */
+function buildHtml(){
+  var F = 'font-family:\'맑은 고딕\',Malgun Gothic,sans-serif;';
+  var TD = 'border:1px solid #999;padding:5px 8px;' + F + 'font-size:10pt;';
+  var TH = TD + 'background:#eef1f5;font-weight:bold;';
+  var es = pub(), ei = endInfo();
+  var h = '<div style="' + F + 'font-size:11pt;color:#000">';
+  h += '<h1 style="font-size:16pt;margin:0 0 10px">' + esc(S.title) + '</h1>';
+  h += '<table style="border-collapse:collapse;margin-bottom:14px">';
+  h += '<tr><td style="' + TH + '">일시</td><td style="' + TD + '">' + ymd(S.startedAt) + ' ' +
+       hhmm(S.startedAt) + (ei ? ' ~ ' + ei.at + ' (' + ei.mins + '분)' : '') + '</td></tr>';
+  if (S.place) h += '<tr><td style="' + TH + '">장소</td><td style="' + TD + '">' + esc(S.place) + '</td></tr>';
+  h += '<tr><td style="' + TH + '">참석</td><td style="' + TD + '">' +
+       esc(S.speakers.map(function(s){ return s.name; }).join(', ')) +
+       ' (' + S.speakers.length + '명)</td></tr>';
+  if (S.absentees && S.absentees.length)
+    h += '<tr><td style="' + TH + '">결석</td><td style="' + TD + '">' +
+         esc(S.absentees.join(', ')) + ' (' + S.absentees.length + '명)</td></tr>';
+  h += '</table>';
+
+  if (!es.length) { h += '<p>기록 없음</p></div>'; return h; }
+
+  groupsFor(es).forEach(function(g){
+    if (!g.items.length && g.no === 0) return;
+    h += '<h2 style="font-size:12pt;margin:14px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #333">' +
+         (g.no === 0 ? '개회' : '안건 ' + g.no + '. ' + esc(g.title)) + '</h2>';
+    if (!g.items.length) { h += '<p style="' + F + 'color:#666">기록된 발언 없음</p>'; return; }
+    h += '<table style="border-collapse:collapse;width:100%">';
+    g.items.forEach(function(t){
+      var body = htmlText(t.text);
+      var p = pre(t);
+      if (p) body = '<b>' + p.trim() + '</b> ' + body;
+      if (t.owner) body += ' <span style="color:#555">(담당: ' + esc(t.owner) + ')</span>';
+      if (t.due)   body += ' <span style="color:#555">(기한: ' + esc(t.due) + ')</span>';
+      h += '<tr>' +
+        '<td style="' + TD + 'width:52px;color:#666;font-size:9pt;white-space:nowrap">' + hhmm(t.ts) + '</td>' +
+        '<td style="' + TD + 'width:110px;font-weight:bold;white-space:nowrap">' + esc(nameOf(t)) + '</td>' +
+        '<td style="' + TD + '">' + body + '</td></tr>';
+    });
+    h += '</table>';
+  });
+
+  var dec = es.filter(function(t){ return t.type === '결정'; });
+  var act = es.filter(function(t){ return t.type === '액션'; });
+  if (dec.length) {
+    h += '<h2 style="font-size:12pt;margin:16px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #333">결정사항</h2>';
+    h += '<table style="border-collapse:collapse;width:100%"><tr>' +
+         '<td style="' + TH + 'width:40px">번호</td><td style="' + TH + '">내용</td>' +
+         '<td style="' + TH + 'width:110px">발의</td></tr>';
+    dec.forEach(function(t,i){
+      h += '<tr><td style="' + TD + 'text-align:center">' + (i+1) + '</td>' +
+           '<td style="' + TD + '">' + htmlText(t.text) + '</td>' +
+           '<td style="' + TD + '">' + esc(nameOf(t)) + '</td></tr>';
+    });
+    h += '</table>';
+  }
+  if (act.length) {
+    h += '<h2 style="font-size:12pt;margin:16px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #333">조치사항</h2>';
+    h += '<table style="border-collapse:collapse;width:100%"><tr>' +
+         '<td style="' + TH + 'width:40px">번호</td><td style="' + TH + 'width:110px">담당</td>' +
+         '<td style="' + TH + '">내용</td><td style="' + TH + 'width:90px">기한</td></tr>';
+    act.forEach(function(t,i){
+      h += '<tr><td style="' + TD + 'text-align:center">' + (i+1) + '</td>' +
+           '<td style="' + TD + '">' + esc(t.owner || nameOf(t)) + '</td>' +
+           '<td style="' + TD + '">' + htmlText(t.text) + '</td>' +
+           '<td style="' + TD + '">' + esc(t.due || '-') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+  return h + '</div>';
+}
+
+/* 창을 열면 포커스를 창 안으로 가져온다.
+   안 그러면 뒤에 남은 입력창에 Enter가 들어가, 화면에 보이는 내보내기 본문에는
+   없는 발언이 회의록에 조용히 추가된다. */
+function openExport(){ $('ovExport').classList.remove('hide'); setOut('md'); $('outText').focus(); }
+function setOut(k){
+  $('outText').value = k === 'md' ? buildMd() : k === 'txt' ? buildTxt() : buildSum();
+}
+function copyOut(){
+  var ta = $('outText');
+  ta.removeAttribute('readonly'); ta.select(); ta.setSelectionRange(0, ta.value.length);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){}
+  ta.setAttribute('readonly','');
+  if (ok) { alert('복사되었습니다.'); return; }
+  // 실제 결과를 기다렸다가 알린다 — 실패했는데 "복사됨"이라고 하지 않는다
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ta.value).then(
+      function(){ alert('복사되었습니다.'); },
+      function(){ alert('복사 실패 — 직접 선택해서 Ctrl+C 하세요.'); });
+    return;
+  }
+  alert('복사 실패 — 직접 선택해서 Ctrl+C 하세요.');
+}
+function copyRich(){
+  var html = buildHtml();
+  var d = document.createElement('div');
+  d.innerHTML = html;
+  d.setAttribute('style','position:fixed;left:-99999px;top:0;width:700px;background:#fff');
+  document.body.appendChild(d);
+  var r = document.createRange(); r.selectNodeContents(d);
+  var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){}
+  s.removeAllRanges(); d.remove();
+  if (ok) { alert('복사되었습니다. 한글이나 워드에 Ctrl+V 하세요 (표와 굵은 글씨가 유지됩니다).'); return; }
+  // execCommand가 막힌 브라우저용 — 클립보드 API로 같은 서식(HTML)을 싣는다
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([ new ClipboardItem({
+      'text/html':  new Blob([html],       { type:'text/html' }),
+      'text/plain': new Blob([buildTxt()], { type:'text/plain' })
+    }) ]).then(
+      function(){ alert('복사되었습니다. 한글이나 워드에 Ctrl+V 하세요 (표와 굵은 글씨가 유지됩니다).'); },
+      function(){ alert('복사 실패 — 아래 "마크다운" 또는 "일반 텍스트"를 이용해 주세요.'); });
+    return;
+  }
+  alert('복사 실패 — 아래 "마크다운" 또는 "일반 텍스트"를 이용해 주세요.');
+}
+function saveJson(){
+  // 금칙문자를 지워 없애면 제목이 통째로 비거나 단어가 붙어 뜻이 달라진다.
+  // 빈 이름이 되지 않도록 대체 문자를 쓰고 마지막에 기본값을 둔다.
+  var name = String(S.title || '')
+    .replace(/[\\/:*?"<>|]/g, ' ').replace(/[.\s]+$/,'').replace(/\s+/g,' ').trim();
+  downloadJson(S, ymdFile(new Date(S.startedAt)) + '_' + (name || '회의록') + '.json');
+}
+function openHelp(){
+  $('ovHelp').classList.remove('hide');
+  $('ovHelp').querySelector('button').focus();
+}
+function closeOv(){
+  var ovs = document.querySelectorAll('.ov');   // NodeList.forEach가 없는 브라우저 대비
+  for (var i = 0; i < ovs.length; i++) ovs[i].classList.add('hide');
+  focusInput();
+}
+/* 저장소는 탭마다가 아니라 브라우저 단위로 공유된다.
+   같은 회의록을 두 탭에서 열면 나중에 저장한 탭이 상대를 통째로 덮어쓴다.
+   막을 방법은 없으므로, 덮어써지고 있다는 사실만은 즉시 알린다. */
+window.addEventListener('storage', function(e){
+  if (e.key !== KEY || !S || !S.entries.length || warnedOtherTab) return;
+  warnedOtherTab = true;
+  $('saved').style.color = 'var(--bad)';
+  $('saved').textContent = '다른 탭 충돌!';
+  alert('같은 브라우저의 다른 탭에서도 회의록이 저장되고 있습니다.\n\n' +
+        '두 탭은 같은 저장 공간을 쓰기 때문에 나중에 저장한 쪽이 상대를 덮어씁니다.\n' +
+        '지금 이 탭에서 F8 → "💾 .json 저장"으로 백업한 뒤, 한쪽 탭만 남기고 닫아 주세요.');
+});
+
+window.addEventListener('beforeunload', function(e){
+  if (leaving) return;                       // 앱이 스스로 새로고침하는 경우엔 묻지 않는다
+  if (S && S.entries.length) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+</body>
+</html>
